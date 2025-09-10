@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>スケジュール管理</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+  button { margin: 0 5px; }
+  input[type="text"], input[type="date"], input[type="time"] { padding: 5px; }
+</style>
+</head>
+<body>
+
+<h2>スケジュール管理</h2>
+
+<form id="scheduleForm">
+  <input type="date" id="date" required>
+  <input type="time" id="time" required>
+  <input type="text" id="content" placeholder="内容" required>
+  <input type="hidden" id="editId">
+  <button type="submit">追加</button>
+  <button type="button" id="cancelEdit" style="display:none;">キャンセル</button>
+</form>
+
+<table id="scheduleTable">
+  <thead>
+    <tr><th>日付</th><th>時間</th><th>内容</th><th>操作</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/XXXX/exec"; // ←自分のGAS URLに置き換え
+
+// スケジュール取得
+async function fetchSchedules() {
+  const res = await fetch(GAS_URL);
+  const data = await res.json();
+  const tbody = document.querySelector("#scheduleTable tbody");
+  tbody.innerHTML = "";
+  data.forEach(item => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${item.date}</td>
+      <td>${item.time}</td>
+      <td>${item.content}</td>
+      <td>
+        <button onclick='startEdit(${item.id}, "${item.date}", "${item.time}", "${item.content}")'>編集</button>
+        <button onclick='deleteSchedule(${item.id})'>削除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// 追加・編集処理
+document.querySelector("#scheduleForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const date = document.querySelector("#date").value;
+  const time = document.querySelector("#time").value;
+  const content = document.querySelector("#content").value;
+  const editId = document.querySelector("#editId").value;
+
+  const action = editId ? "edit" : "add";
+  const payload = { action, date, time, content };
+  if (editId) payload.id = editId;
+
+  // データ送信
+  const res = await fetch(GAS_URL, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+  // 送信後、即座に最新データを取得して表示
+  await fetchSchedules();
+
+  // フォームリセット
+  document.querySelector("#scheduleForm").reset();
+  document.querySelector("#editId").value = "";
+  document.querySelector("#cancelEdit").style.display = "none";
+});
+
+// 編集開始
+function startEdit(id, date, time, content) {
+  document.querySelector("#date").value = date;
+  document.querySelector("#time").value = time;
+  document.querySelector("#content").value = content;
+  document.querySelector("#editId").value = id;
+  document.querySelector("#cancelEdit").style.display = "inline";
+}
+
+// 編集キャンセル
+document.querySelector("#cancelEdit").addEventListener("click", () => {
+  document.querySelector("#scheduleForm").reset();
+  document.querySelector("#editId").value = "";
+  document.querySelector("#cancelEdit").style.display = "none";
+});
+
+// 削除処理
+async function deleteSchedule(id) {
+  if (!confirm("本当に削除しますか？")) return;
+  await fetch(GAS_URL, {
+    method: "POST",
+    body: JSON.stringify({action: "delete", id})
+  });
+  await fetchSchedules();
+}
+
+// ページ読み込み時に表示
+fetchSchedules();
+</script>
+
+</body>
+</html>
